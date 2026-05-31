@@ -1,4 +1,4 @@
-export const API_URL = 'http://192.168.0.19:8080/api';
+export const API_URL = 'http://34.67.129.19:8080/api';
 
 export const COLORS = {
   primary: '#2D6A4F',

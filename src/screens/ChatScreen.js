@@ -3,32 +3,10 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { useAudioRecorder, createAudioPlayer, AudioModule, RecordingPresets } from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
 import { api } from '../services/api';
 import { COLORS } from '../constants';
-
-const OPCIONES_GRABACION = {
-  android: {
-    extension: '.3gp',
-    outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
-    audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-    sampleRate: 16000,
-    numberOfChannels: 1,
-    bitRate: 128000,
-  },
-  ios: {
-    extension: '.caf',
-    audioQuality: Audio.IOSAudioQuality.HIGH,
-    sampleRate: 16000,
-    numberOfChannels: 1,
-    bitRate: 128000,
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-  },
-  web: { mimeType: 'audio/webm', bitsPerSecond: 128000 },
-};
 
 function Bubble({ msg }) {
   const isUser = msg.role === 'user';
@@ -51,12 +29,12 @@ export default function ChatScreen({ route }) {
   const [loading, setLoading] = useState(false);
   const [vozActiva, setVozActiva] = useState(false);
   const [estadoVoz, setEstadoVoz] = useState('idle'); // idle | grabando | procesando
-  const grabacionRef = useRef(null);
   const listRef = useRef(null);
 
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
   useEffect(() => {
-    Audio.requestPermissionsAsync();
-    Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+    AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
   }, []);
 
   const send = async (textOverride) => {
@@ -83,11 +61,8 @@ export default function ChatScreen({ route }) {
       const { audio_base64 } = await api.sintetizar(texto);
       const fileUri = FileSystem.cacheDirectory + 'respuesta.mp3';
       await FileSystem.writeAsStringAsync(fileUri, audio_base64, { encoding: FileSystem.EncodingType.Base64 });
-      const { sound } = await Audio.Sound.createAsync({ uri: fileUri });
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.didJustFinish) sound.unloadAsync();
-      });
+      const player = createAudioPlayer({ uri: fileUri });
+      player.play();
     } catch (e) {
       // TTS no crítico, si falla simplemente no suena
     }
@@ -103,13 +78,13 @@ export default function ChatScreen({ route }) {
 
   const iniciarGrabacion = async () => {
     try {
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      const { granted } = await AudioModule.requestRecordingPermissionsAsync();
+      if (!granted) {
         Alert.alert('Permiso requerido', 'Necesitamos acceso al micrófono.');
         return;
       }
-      const { recording } = await Audio.Recording.createAsync(OPCIONES_GRABACION);
-      grabacionRef.current = recording;
+      await audioRecorder.prepareToRecordAsync(RecordingPresets.HIGH_QUALITY);
+      audioRecorder.record();
       setEstadoVoz('grabando');
     } catch (e) {
       Alert.alert('Error', 'No se pudo iniciar la grabación.');
@@ -119,9 +94,8 @@ export default function ChatScreen({ route }) {
   const detenerGrabacion = async () => {
     setEstadoVoz('procesando');
     try {
-      await grabacionRef.current.stopAndUnloadAsync();
-      const uri = grabacionRef.current.getURI();
-      grabacionRef.current = null;
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
 
       const audio_base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       const { texto } = await api.transcribir(audio_base64);
@@ -144,7 +118,6 @@ export default function ChatScreen({ route }) {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      {/* Toggle voz activa */}
       <TouchableOpacity style={[styles.vozToggle, vozActiva && styles.vozToggleActive]} onPress={() => setVozActiva((v) => !v)}>
         <Text style={[styles.vozToggleTxt, vozActiva && styles.vozToggleTxtActive]}>
           {vozActiva ? '🔊 Respuesta en voz: ON' : '🔇 Respuesta en voz: OFF'}
@@ -168,7 +141,6 @@ export default function ChatScreen({ route }) {
       )}
 
       <View style={styles.inputRow}>
-        {/* Botón micrófono */}
         <TouchableOpacity
           style={[styles.micBtn, { backgroundColor: micColor }]}
           onPress={toggleGrabacion}
