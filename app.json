@@ -15,6 +15,25 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "package": "com.sombraai.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCQSWd0_xkmS290g-BV1imznKr2zD1ho8k"
+        }
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.sombraai.app",
+      "config": {
+        "googleMapsApiKey": "AIzaSyCQSWd0_xkmS290g-BV1imznKr2zD1ho8k"
       }
     },
     "web": {
